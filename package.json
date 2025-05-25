@@ -1,0 +1,30 @@
+{
+  "name": "solana-exchange-fresh-wallet-sniper",
+  "version": "1.0.0",
+  "description": "Tracks outgoing SOL from exchange addresses, recursively tracks fresh wallets, and auto-buys/sells new tokens using Sniperoo.",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node --loader ts-node/esm src/index.ts",
+    "build": "tsc",
+    "prepare": "npm run build"
+  },
+  "type": "module",
+  "keywords": [
+    "solana",
+    "sniper",
+    "bot",
+    "exchange",
+    "sniperoo"
+  ],
+  "author": "abdellah9",
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.2",
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.5"
+  }
+}
