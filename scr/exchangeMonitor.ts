@@ -2,6 +2,7 @@ import { Connection, PublicKey, ParsedInstruction, PartiallyDecodedInstruction }
 import { config } from './config.js';
 import { isFreshWallet } from './utils/isFreshWallet.js';
 import { autoBuyIfEnabled } from './autoBuySell.js';
+import { throttled } from './rpcThrottled.js';
 
 const MAX_WALLETS = 10;
 const MIN_SOL_AMOUNT = 1;
@@ -9,14 +10,13 @@ const MONITOR_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
 interface MonitoredWallet {
   address: string;
-  addedAt: number; // timestamp in ms
+  addedAt: number;
 }
 
 const monitoredWallets: MonitoredWallet[] = [];
 
 function cleanOldWallets() {
   const now = Date.now();
-  // Remove wallets older than 1 hour
   for (let i = monitoredWallets.length - 1; i >= 0; i--) {
     if (now - monitoredWallets[i].addedAt > MONITOR_DURATION_MS) {
       console.log(`[Monitor] Removing wallet ${monitoredWallets[i].address} after 1 hour.`);
@@ -47,10 +47,18 @@ export async function trackWalletChain(address: string, connection: Connection) 
     const sig = logs.signature;
     if (!sig) return;
 
-    const tx = await connection.getParsedTransaction(sig, { maxSupportedTransactionVersion: 0 });
+    // Use the throttled helper for all RPC calls!
+    let tx;
+    try {
+      tx = await throttled(() =>
+        connection.getParsedTransaction(sig, { maxSupportedTransactionVersion: 0 })
+      );
+    } catch (err) {
+      console.error(`[RPC] Failed to fetch transaction for signature ${sig}:`, err);
+      return;
+    }
     if (!tx) return;
 
-    // Outgoing SOL to a fresh wallet AND amount > 1 SOL
     for (const ix of tx.transaction.message.instructions) {
       if (
         isParsedInstruction(ix) &&
@@ -62,13 +70,22 @@ export async function trackWalletChain(address: string, connection: Connection) 
         const recipient = ix.parsed.info.destination;
         const amountSol = Number(ix.parsed.info.lamports) / 1e9;
 
-        if (amountSol > MIN_SOL_AMOUNT && await isFreshWallet(recipient, connection)) {
+        let fresh = false;
+        try {
+          const freshResult = await throttled(() =>
+            isFreshWallet(recipient, connection)
+          );
+          fresh = freshResult === true;
+        } catch (err) {
+          console.error(`[RPC] Failed to check if wallet is fresh ${recipient}:`, err);
+        }
+
+        if (amountSol > MIN_SOL_AMOUNT && fresh) {
           addMonitoredWallet(recipient);
         }
       }
     }
 
-    // SPL token buy (only for monitored wallets)
     for (const ix of tx.transaction.message.instructions) {
       if (
         isParsedInstruction(ix) &&
@@ -89,10 +106,9 @@ export async function trackWalletChain(address: string, connection: Connection) 
   }, "confirmed");
 }
 
-// <-- This is the missing export! -->
 export function startExchangeMonitoring(connection: Connection) {
   for (const ex of config.exchanges) {
     trackWalletChain(ex.address, connection);
   }
   console.log(`[Monitor] Started monitoring exchanges from config.`);
-      }
+                                              }
