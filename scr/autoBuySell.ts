@@ -1,5 +1,5 @@
-import { config } from "./config";
-import { buyTokenWithSniperoo } from "./utils/handlers/sniperooHandler";
+import { config } from "./config.js";
+import { buyTokenWithSniperoo } from "./utils/handlers/sniperooHandler.js";
 
 /**
  * Triggers a buy (and optionally auto-sell) action for a given token mint address.
